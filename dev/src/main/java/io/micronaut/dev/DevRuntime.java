@@ -58,6 +58,7 @@ import io.micronaut.runtime.EmbeddedApplication;
 import io.micronaut.scheduling.io.watch.DirectoryWatcher;
 import io.micronaut.scheduling.io.watch.FileChange;
 import io.micronaut.scheduling.io.watch.FileChangeBatch;
+import io.micronaut.scheduling.io.watch.FileWatcher;
 import io.micronaut.scheduling.io.watch.WatchOptions;
 import io.micronaut.scheduling.io.watch.event.WatchEventType;
 import org.jspecify.annotations.NullMarked;
@@ -85,6 +86,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -168,6 +170,7 @@ public final class DevRuntime implements Closeable {
      */
     private volatile boolean startFailed;
     private @Nullable DirectoryWatcher watcher;
+    private final Map<Path, FileWatcher.Registration> pinnedWatches = new ConcurrentHashMap<>();
     private @Nullable LiveReloadServer liveReload;
     private @Nullable Instrumentation instrumentation;
     private volatile int redefinitions;
@@ -412,6 +415,24 @@ public final class DevRuntime implements Closeable {
      */
     public int retainedCount() {
         return retainedCount;
+    }
+
+    /**
+     * The one watcher of the process, over the manifest's roots, which the {@link io.micronaut.scheduling.io.watch.FileWatcher}
+     * bean of every context registers through.
+     *
+     * @return The watcher, or null before the runtime started watching
+     */
+    @Nullable
+    DirectoryWatcher fileWatcher() {
+        return watcher;
+    }
+
+    /**
+     * @return The directories outside the roots that a context's file watcher bean registered, kept watched for the process
+     */
+    Map<Path, FileWatcher.Registration> pinnedWatches() {
+        return pinnedWatches;
     }
 
     /**
