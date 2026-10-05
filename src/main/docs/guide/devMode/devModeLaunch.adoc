@@ -25,6 +25,24 @@ The launcher compiles every language whose class output does not exist yet, so i
 
 TIP: Everything under the manifest's `micronaut.dev.` keys can be set as a system property, and api:context.env.DevelopmentMode[] answers whether the application runs this way, so a bean can be conditioned on it with `@Requires(condition = DevelopmentMode.Active.class)`.
 
+=== The dev endpoint
+
+With `micronaut-management` on the classpath, `GET /dev` reports the generation, the reload strategy, the watched roots and the last compilation failure, and `POST /dev/reload` compiles everything and restarts if anything changed: the way to recover when the watcher missed an edit, which the gate that answers requests with a compilation failure lets through. The endpoint moves with `endpoints.all.path` and `endpoints.dev.path` like any other.
+
+The endpoint is sensitive: its status holds absolute paths of the machine and its reload compiles and restarts the application, so it answers 401 until Micronaut Security protects it, or until a development configuration opts out:
+
+[source,properties]
+----
+endpoints.dev.sensitive=false
+----
+
+The reload is a JSON request, refused with a 403 when a browser marks it as coming from another site or its `Origin` is not the server's own as its host resolution gives it (behind a proxy, from the forwarding headers), so that a page the developer visits cannot trigger it with a form:
+
+[source,bash]
+----
+curl -X POST -H 'Content-Type: application/json' http://localhost:8080/dev/reload
+----
+
 === LiveReload
 
 Add `micronaut-dev-livereload` to the development runtime classpath and the launcher starts a LiveReload server on port 35729 (`micronaut.dev.livereload.port`): browsers reload when the application restarted or a template changed, and swap a stylesheet in place when only a stylesheet changed. Pages get the client script appended before their closing body tag (`micronaut.dev.livereload.inject-script=false` for users of a browser extension), and a api:dev.livereload.LiveReloadTrigger[] bean lets a module ask for a refresh. Adding the module is the switch: there is no other setting to turn it on.
