@@ -75,8 +75,7 @@ public final class EventStreams {
             BodyElements<Event<B>> elements;
             if (contentType != null && MediaType.TEXT_EVENT_STREAM_TYPE.matches(contentType)) {
                 // the data of each event is JSON
-                Function<byte[], B> reader = dataReader(handlerRegistry, eventType, MediaType.APPLICATION_JSON_TYPE, headers);
-                elements = new ByteBodyElements<>(body, new EventReader<>(new EventStreamDecoder(maxBufferSize), reader), EventStreams::wrap);
+                elements = new ByteBodyElements<>(body, reader(handlerRegistry, eventType, headers, maxBufferSize), EventStreams::wrap);
             } else {
                 // a single body, such as JSON, is one event
                 MediaType mediaType = contentType == null ? MediaType.APPLICATION_JSON_TYPE : contentType;
@@ -87,6 +86,24 @@ public final class EventStreams {
             body.close();
             throw e;
         }
+    }
+
+    /**
+     * The reader of the events of an event stream: the lines are split as the pieces are read,
+     * and the data of an event is decoded as JSON when the event is polled.
+     *
+     * @param handlerRegistry The readers of the event data
+     * @param eventType       The event data type
+     * @param headers         The headers of the response
+     * @param maxBufferSize   The maximum size of a line, and of the data of one event
+     * @param <B>             The event data type
+     * @return The reader
+     */
+    public static <B> PieceReader<Event<B>> reader(MessageBodyHandlerRegistry handlerRegistry,
+                                                   Argument<B> eventType,
+                                                   Headers headers,
+                                                   long maxBufferSize) {
+        return new EventReader<>(new EventStreamDecoder(maxBufferSize), dataReader(handlerRegistry, eventType, MediaType.APPLICATION_JSON_TYPE, headers));
     }
 
     /**
