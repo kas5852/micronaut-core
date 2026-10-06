@@ -29,6 +29,8 @@ import io.micronaut.context.watch.ConfigurationChange;
 import io.micronaut.context.watch.ResourceChange;
 import io.micronaut.core.annotation.Experimental;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.beans.BeanIntrospector;
+import io.micronaut.core.io.service.MicronautMetaServiceLoaderUtils;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.util.NativeImageUtils;
 import io.micronaut.context.reload.ClassChange;
@@ -1697,6 +1699,9 @@ public final class DevRuntime implements Closeable {
                 old.stop();
             }
             awaitApplicationThread();
+            // the swap emptied the shared caches, but what read the retired generation since, a restart watcher or
+            // the stopping context, filled them again with its classes: forgotten again now that it no longer runs
+            forgetRetired(retired);
         }
         retainedForNext = retained;
         started = new CompletableFuture<>();
@@ -1779,6 +1784,15 @@ public final class DevRuntime implements Closeable {
             }
             return retained;
         };
+    }
+
+    /**
+     * Forgets what the process-wide caches hold of a retired generation: the introspections the shared introspector
+     * indexed for its loader, held softly so that they would keep it until the memory runs short, and its service entries.
+     */
+    private static void forgetRetired(GenerationClassLoader retired) {
+        MicronautMetaServiceLoaderUtils.invalidate(retired);
+        BeanIntrospector.SHARED.invalidate();
     }
 
     private static boolean isStale(BeanRegistration<?> registration) {
