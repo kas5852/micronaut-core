@@ -20,6 +20,10 @@ import io.micronaut.context.annotation.Retain;
 import io.micronaut.core.annotation.Experimental;
 import org.jspecify.annotations.NullMarked;
 
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /**
  * Retains the singletons whose definition is annotated with {@link Retain}: on the bean's class,
  * or on the factory method that produces it. The annotation is read from the definition's declared
@@ -47,5 +51,18 @@ public final class AnnotatedBeanRetentionPolicy implements BeanRetentionPolicy {
     @Override
     public boolean retain(BeanRegistration<?> registration) {
         return registration.getBeanDefinition().getAnnotationMetadata().getDeclaredMetadata().hasStereotype(Retain.class);
+    }
+
+    /**
+     * The prefixes the annotation names in {@link Retain#invalidatedBy()}: a change under one of them releases the bean,
+     * which the next context creates again from the changed configuration.
+     *
+     * @param registration The retained bean's registration
+     * @return The prefixes
+     */
+    @Override
+    public Set<String> observedConfigurationPrefixes(BeanRegistration<?> registration) {
+        String[] prefixes = registration.getBeanDefinition().getAnnotationMetadata().getDeclaredMetadata().stringValues(Retain.class, "invalidatedBy");
+        return prefixes.length == 0 ? Set.of() : new LinkedHashSet<>(Arrays.asList(prefixes));
     }
 }
