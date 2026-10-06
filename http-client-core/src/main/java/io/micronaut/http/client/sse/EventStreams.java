@@ -68,6 +68,26 @@ public final class EventStreams {
                                                                    MessageBodyHandlerRegistry handlerRegistry,
                                                                    Argument<B> eventType,
                                                                    long maxBufferSize) {
+        return response(response, handlerRegistry, eventType, maxBufferSize, EventReader::new);
+    }
+
+    /**
+     * The response of an exchange whose body bytes the client received, with the events of an
+     * event stream read by a reader of the client's own buffers.
+     *
+     * @param response        The response, with a status that is not an error
+     * @param handlerRegistry The readers of the event data
+     * @param eventType       The event data type
+     * @param maxBufferSize   The maximum size of a line, and of the data of one event
+     * @param readers         Creates the reader of the events of an event stream
+     * @param <B>             The event data type
+     * @return The response, whose body is the events
+     */
+    public static <B> HttpResponse<BodyElements<Event<B>>> response(ByteBodyHttpResponse<?> response,
+                                                                   MessageBodyHandlerRegistry handlerRegistry,
+                                                                   Argument<B> eventType,
+                                                                   long maxBufferSize,
+                                                                   ReaderFactory<B> readers) {
         CloseableByteBody body = response.byteBody().move();
         try {
             MediaType contentType = response.getContentType().orElse(null);
@@ -75,7 +95,8 @@ public final class EventStreams {
             BodyElements<Event<B>> elements;
             if (contentType != null && MediaType.TEXT_EVENT_STREAM_TYPE.matches(contentType)) {
                 // the data of each event is JSON
-                elements = new ByteBodyElements<>(body, reader(handlerRegistry, eventType, headers, maxBufferSize), EventStreams::wrap);
+                PieceReader<Event<B>> reader = readers.create(new EventStreamDecoder(maxBufferSize), dataReader(handlerRegistry, eventType, MediaType.APPLICATION_JSON_TYPE, headers));
+                elements = new ByteBodyElements<>(body, reader, EventStreams::wrap);
             } else {
                 // a single body, such as JSON, is one event
                 MediaType mediaType = contentType == null ? MediaType.APPLICATION_JSON_TYPE : contentType;
@@ -116,7 +137,17 @@ public final class EventStreams {
         return error instanceof HttpClientException ? error : new HttpClientException("Error consuming Server Sent Events: " + error.getMessage(), error);
     }
 
-    private static <B> Function<byte[], B> dataReader(MessageBodyHandlerRegistry handlerRegistry,
+    /**
+     * Decodes the data of an event, or a whole body that is not an event stream.
+     *
+     * @param handlerRegistry The readers
+     * @param eventType       The event data type
+     * @param mediaType       The media type of the data
+     * @param headers         The headers of the response
+     * @param <B>             The event data type
+     * @return Decodes the bytes of the data
+     */
+    public static <B> Function<byte[], B> dataReader(MessageBodyHandlerRegistry handlerRegistry,
                                                       Argument<B> eventType,
                                                       MediaType mediaType,
                                                       Headers headers) {
@@ -129,6 +160,22 @@ public final class EventStreams {
             }
             return decoded;
         };
+    }
+
+    /**
+     * Creates the reader of the events of an event stream, e.g. one that splits the lines of
+     * the client's own buffers in place.
+     *
+     * @param <B> The event data type
+     */
+    @FunctionalInterface
+    public interface ReaderFactory<B> {
+        /**
+         * @param decoder    The decoder, which interprets the lines
+         * @param dataReader Decodes the data of an event, when the event is read
+         * @return The reader
+         */
+        PieceReader<Event<B>> create(EventStreamDecoder decoder, Function<byte[], B> dataReader);
     }
 
     /**
