@@ -23,7 +23,8 @@ import java.util.function.Function;
 
 /**
  * The elements of a body, decoded one at a time as they are asked for, like a cursor: a JSON
- * array or a JSON stream read with {@link AsyncRequestBody#elements}.
+ * array or a JSON stream read with {@link AsyncRequestBody#elements}, or the events of a
+ * response read with the {@code io.micronaut.http.client.sse.AsyncSseClient}.
  * Nothing is read ahead of the caller: the next element is received and decoded when
  * {@link #next()} is called, or when the stage the {@link #forEach} consumer returned for the
  * previous element completes.
@@ -40,11 +41,12 @@ import java.util.function.Function;
  * optional and {@link #forEach} completes normally, while closing during an operation completes
  * that operation with a {@link java.util.concurrent.CancellationException}, and an operation
  * started after closing throws an {@link IllegalStateException}. Closing discards the rest of
- * the body; the elements are closed when the method that read them completed, see
- * {@link AsyncRequestBody}.</p>
+ * the body. On the server, the elements are closed when the method that read them completed,
+ * see {@link AsyncRequestBody}. On the client, the connection stays reserved until the elements
+ * were read to the end or closed.</p>
  *
- * <p>The stages complete on a thread chosen by the server, usually an I/O thread: a consumer
- * must not block.</p>
+ * <p>The stages complete on a thread chosen by the server or the client, usually an I/O thread:
+ * a consumer must not block.</p>
  *
  * @param <T> The type of an element
  * @author Denis Stepanov
